@@ -1,9 +1,22 @@
+#!/usr/bin/env python3
 import sys
-from PyQt5.QtWidgets import QApplication
-from serialflow_interface import SerialFlowInterface
+from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QFont
+from app.main_window import MainWindow
+
+
+def main():
+    app = QApplication(sys.argv)
+    app.setApplicationName("SerialForge")
+    
+    font = QFont("Courier New", 10)
+    app.setFont(font)
+    
+    window = MainWindow()
+    window.show()
+    
+    sys.exit(app.exec())
+
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = SerialFlowInterface()
-    window.show()
-    sys.exit(app.exec_())
+    main()
