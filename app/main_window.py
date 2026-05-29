@@ -5,14 +5,17 @@ from PySide6.QtWidgets import (
     QLabel, QStatusBar, QFileDialog, QMessageBox, QFrame,
     QGridLayout, QStackedWidget
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QTextCharFormat, QColor, QFont, QTextCursor
 from datetime import datetime
 
+import re
 from app.style import get_stylesheet, COLORS as C
 from app.serial_backend import SerialBackend
 from app.widgets.pill_group import PillGroup
 from app.widgets.toggle_row import ToggleRow
+from app.widgets.commands_view import CommandsView
+from app.widgets.triggers_view import TriggersView
 
 
 class MainWindow(QMainWindow):
@@ -34,15 +37,18 @@ class MainWindow(QMainWindow):
         self.display_mode = "ASCII"
         self.show_timestamp = True
         self.show_direction = True
-        self.current_main_view = "log"
         self.current_utility_view = "triggers"
+        self._rx_buffer = b""
+        self._rx_flush_timer = QTimer(self)
+        self._rx_flush_timer.setSingleShot(True)
+        self._rx_flush_timer.setInterval(50)
+        self._rx_flush_timer.timeout.connect(self._flush_rx_buffer)
 
         # Aplica tema
         self.setStyleSheet(get_stylesheet())
 
         self._build_ui()
         self._refresh_ports()
-        self._set_main_view("log")
         self._set_utility_view("triggers")
         self._set_utility_panel_visible(False)
 
@@ -110,10 +116,12 @@ class MainWindow(QMainWindow):
         self.btn_save.clicked.connect(self.on_save_clicked)
 
         self.btn_toggle_triggers = QPushButton("⚡ Triggers")
+        self.btn_toggle_triggers.setCheckable(True)
         self.btn_toggle_triggers.setFixedHeight(30)
         self.btn_toggle_triggers.clicked.connect(lambda: self._toggle_utility_panel("triggers"))
 
         self.btn_toggle_commands = QPushButton("⌘ Comandos")
+        self.btn_toggle_commands.setCheckable(True)
         self.btn_toggle_commands.setFixedHeight(30)
         self.btn_toggle_commands.clicked.connect(lambda: self._toggle_utility_panel("commands"))
 
@@ -129,8 +137,8 @@ class MainWindow(QMainWindow):
 
         self.status_chip = QLabel("● DESCONECTADO")
         self.status_chip.setStyleSheet(
-            f"background-color: {C['red_dim']}; color: {C['red']}; "
-            f"border: 1px solid #ff456633; border-radius: 10px; "
+            f"background-color: #2d0a0f; color: #ff6b7a; "
+            f"border: 1px solid #5c1520; border-radius: 10px; "
             f"padding: 4px 10px; font-size: 10px; letter-spacing: 1px;"
         )
         layout.addWidget(self.status_chip)
@@ -249,10 +257,7 @@ class MainWindow(QMainWindow):
         content_header = self._build_content_header()
         main_layout.addWidget(content_header)
 
-        self.main_stack = QStackedWidget()
-        self.main_stack.addWidget(self._build_log_view())
-        self.main_stack.addWidget(self._build_graph_view())
-        main_layout.addWidget(self.main_stack, stretch=1)
+        main_layout.addWidget(self._build_log_view(), stretch=1)
 
         send_bar = self._build_send_bar()
         main_layout.addWidget(send_bar)
@@ -274,18 +279,14 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 0, 12, 0)
         layout.setSpacing(0)
 
-        self.btn_view_log = QPushButton("Log de Comunicação")
-        self.btn_view_log.setCheckable(True)
-        self.btn_view_log.setFixedHeight(40)
-        self.btn_view_log.clicked.connect(lambda: self._set_main_view("log"))
+        lbl_title = QLabel("Log de Comunicação")
+        lbl_title.setStyleSheet(
+            f"color: {C['accent']}; font-size: 11px; "
+            f"border-bottom: 2px solid {C['accent']}; padding: 0 18px;"
+        )
+        lbl_title.setFixedHeight(40)
 
-        self.btn_view_graph = QPushButton("Gráfico")
-        self.btn_view_graph.setCheckable(True)
-        self.btn_view_graph.setFixedHeight(40)
-        self.btn_view_graph.clicked.connect(lambda: self._set_main_view("graph"))
-
-        layout.addWidget(self.btn_view_log)
-        layout.addWidget(self.btn_view_graph)
+        layout.addWidget(lbl_title)
         layout.addStretch()
 
         self.lbl_context_hint = QLabel("Monitoramento em tempo real")
@@ -320,8 +321,10 @@ class MainWindow(QMainWindow):
 
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
+        log_font = QFont("Courier New", 12)
+        self.log.setFont(log_font)
         self.log.setStyleSheet(
-            "padding: 12px; font-family: 'Courier New', monospace; background: transparent; border: none;"
+            "padding: 12px; background: transparent; border: none;"
         )
 
         self.log_stack.addWidget(empty)
@@ -329,56 +332,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.log_stack, stretch=1)
         return container
 
-    def _build_graph_view(self):
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(12)
-
-        title = QLabel("Gráfico")
-        title.setStyleSheet(f"color: {C['text_primary']}; font-size: 18px; font-weight: bold;")
-
-        description = QLabel(
-            "Deixe esta área para visualizações temporais de RX/TX, throughput ou decodificação.\n"
-            "Mantive como visão principal porque faz sentido alternar entre monitoramento textual e visual."
-        )
-        description.setStyleSheet(f"color: {C['text_secondary']}; font-size: 12px; line-height: 1.5;")
-        description.setWordWrap(True)
-
-        card = QFrame()
-        card.setStyleSheet(
-            f"background-color: {C['bg_panel']}; border: 1px solid {C['border']}; border-radius: 10px;"
-        )
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(18, 18, 18, 18)
-        card_layout.setSpacing(10)
-
-        pill = QLabel("EM BREVE")
-        pill.setStyleSheet(
-            f"background-color: {C['accent_dim']}; color: {C['accent']}; border-radius: 10px;"
-            "padding: 4px 10px; font-size: 10px; font-weight: bold; letter-spacing: 1px;"
-        )
-        pill.setAlignment(Qt.AlignCenter)
-        pill.setFixedWidth(92)
-
-        card_text = QLabel(
-            "Sugestão: usar este painel para taxa por segundo, picos de atividade e filtros por direção."
-        )
-        card_text.setWordWrap(True)
-        card_text.setStyleSheet(f"color: {C['text_secondary']}; font-size: 12px;")
-
-        card_layout.addWidget(pill)
-        card_layout.addWidget(card_text)
-        card_layout.addStretch()
-
-        layout.addWidget(title)
-        layout.addWidget(description)
-        layout.addWidget(card, stretch=1)
-        return container
-
     def _build_utility_panel(self):
         panel = QWidget()
-        panel.setFixedWidth(330)
+        panel.setFixedWidth(360)
         panel.setStyleSheet(
             f"background-color: {C['bg_panel']}; border-left: 1px solid {C['border']};"
         )
@@ -431,55 +387,22 @@ class MainWindow(QMainWindow):
         return panel
 
     def _build_triggers_view(self):
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(12, 8, 12, 12)
-        layout.setSpacing(10)
-
-        info = self._info_card(
-            "Automação reativa",
-            "Boa para regras como ‘se RX contém X, responder Y’ ou destacar frames importantes sem tirar o foco do log."
+        self._triggers_view = TriggersView(
+            get_commands=lambda: self._commands_view._commands if hasattr(self, '_commands_view') else []
         )
-        layout.addWidget(info)
-
-        sample = self._ghost_block(
-            "Exemplos úteis",
-            "• Contém ACK → destacar em verde\n"
-            "• Timeout de 3 s → alerta\n"
-            "• Match em HEX → enviar resposta automática"
-        )
-        layout.addWidget(sample)
-        layout.addStretch()
-        return container
+        return self._triggers_view
 
     def _build_commands_view(self):
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(12, 8, 12, 12)
-        layout.setSpacing(10)
-
-        info = self._info_card(
-            "Biblioteca de comandos",
-            "Melhor em painel lateral porque costuma ser apoio ao trabalho principal: disparar frames salvos, presets e macros rápidas."
-        )
-        layout.addWidget(info)
-
-        sample = self._ghost_block(
-            "Sugestões de evolução",
-            "• Favoritos\n"
-            "• Histórico recente\n"
-            "• Busca rápida / Ctrl+K\n"
-            "• Tags por protocolo ou dispositivo"
-        )
-        layout.addWidget(sample)
-        layout.addStretch()
-        return container
+        self._commands_view = CommandsView()
+        self._commands_view.send_frame.connect(self._on_command_send)
+        return self._commands_view
 
     def _build_send_bar(self):
         bar = QWidget()
+        bar.setObjectName("send_bar")
         bar.setFixedHeight(54)
         bar.setStyleSheet(
-            f"background-color: {C['bg_panel']}; border-top: 1px solid {C['border']};"
+            f"#send_bar {{ background-color: {C['bg_panel']}; border-top: 1px solid {C['border']}; }}"
         )
 
         layout = QHBoxLayout(bar)
@@ -491,8 +414,14 @@ class MainWindow(QMainWindow):
         self.input_send.returnPressed.connect(self.on_send_clicked)
 
         self.btn_send = QPushButton("➤  Enviar")
-        self.btn_send.setObjectName("btn_send")
-        self.btn_send.setFixedHeight(34)
+        self.btn_send.setFixedSize(100, 34)
+        self.btn_send.setStyleSheet(
+            f"QPushButton {{ background-color: {C['accent']}; color: {C['bg_deep']}; "
+            f"border: none; font-weight: bold; border-radius: 6px; padding: 0 14px; }}"
+            f"QPushButton:hover {{ background-color: #33dbff; }}"
+            f"QPushButton:disabled {{ background-color: {C['bg_raised']}; "
+            f"color: {C['text_muted']}; border: 1px solid {C['border_bright']}; }}"
+        )
         self.btn_send.clicked.connect(self.on_send_clicked)
         self.btn_send.setEnabled(False)
 
@@ -604,64 +533,20 @@ class MainWindow(QMainWindow):
         sep.setStyleSheet(f"color: {C['border_bright']}; margin: 0 6px;")
         return sep
 
-    def _tab_style(self, active):
-        color = C['accent'] if active else C['text_muted']
-        border = C['accent'] if active else 'transparent'
-        return f"""
-            QPushButton {{
-                color: {color};
-                background: transparent;
-                border: none;
-                border-bottom: 2px solid {border};
-                padding: 0 18px;
-                font-size: 11px;
-                border-radius: 0;
-            }}
-            QPushButton:hover {{
-                color: {C['text_primary'] if not active else C['accent']};
-            }}
-        """
-
-    def _utility_toggle_style(self, active):
-        bg = C['bg_surface'] if active else 'transparent'
-        fg = C['text_primary'] if active else C['text_muted']
-        border = C['accent'] if active else C['border']
-        return (
-            f"QPushButton {{background-color: {bg}; color: {fg}; border: 1px solid {border}; "
-            f"border-radius: 8px; padding: 0 12px; font-size: 11px; font-weight: 600;}}"
-            f"QPushButton:hover {{color: {C['text_primary']}; border: 1px solid {C['accent']};}}"
-        )
-
-    def _set_main_view(self, view_name):
-        self.current_main_view = view_name
-        is_log = view_name == "log"
-        self.main_stack.setCurrentIndex(0 if is_log else 1)
-        self.btn_view_log.setChecked(is_log)
-        self.btn_view_graph.setChecked(not is_log)
-        self.btn_view_log.setStyleSheet(self._tab_style(is_log))
-        self.btn_view_graph.setStyleSheet(self._tab_style(not is_log))
-        self.lbl_context_hint.setText("Monitoramento em tempo real" if is_log else "Visão visual e métricas")
-
     def _set_utility_view(self, view_name):
         self.current_utility_view = view_name
         is_triggers = view_name == "triggers"
         self.utility_stack.setCurrentIndex(0 if is_triggers else 1)
         self.btn_panel_triggers.setChecked(is_triggers)
         self.btn_panel_commands.setChecked(not is_triggers)
-        self.btn_panel_triggers.setStyleSheet(self._utility_toggle_style(is_triggers))
-        self.btn_panel_commands.setStyleSheet(self._utility_toggle_style(not is_triggers))
         self.lbl_utility_title.setText("Triggers" if is_triggers else "Comandos")
-        self.btn_toggle_triggers.setStyleSheet(self._utility_toggle_style(is_triggers and self.utility_panel.isVisible()))
-        self.btn_toggle_commands.setStyleSheet(self._utility_toggle_style((not is_triggers) and self.utility_panel.isVisible()))
+        self.btn_toggle_triggers.setChecked(is_triggers and self.utility_panel.isVisible())
+        self.btn_toggle_commands.setChecked((not is_triggers) and self.utility_panel.isVisible())
 
     def _set_utility_panel_visible(self, visible):
         self.utility_panel.setVisible(visible)
-        self.btn_toggle_triggers.setStyleSheet(
-            self._utility_toggle_style(visible and self.current_utility_view == "triggers")
-        )
-        self.btn_toggle_commands.setStyleSheet(
-            self._utility_toggle_style(visible and self.current_utility_view == "commands")
-        )
+        self.btn_toggle_triggers.setChecked(visible and self.current_utility_view == "triggers")
+        self.btn_toggle_commands.setChecked(visible and self.current_utility_view == "commands")
 
     def _toggle_utility_panel(self, target_view):
         if self.utility_panel.isVisible() and self.current_utility_view == target_view:
@@ -704,9 +589,10 @@ class MainWindow(QMainWindow):
         self.log.clear()
         self.rx_bytes = 0
         self.tx_bytes = 0
+        self._rx_buffer = b""
+        self._rx_flush_timer.stop()
         self._update_stats()
         self.log_stack.setCurrentIndex(0)
-        self._set_main_view("log")
 
     def on_save_clicked(self):
         path, _ = QFileDialog.getSaveFileName(self, "Salvar Log", "", "Text Files (*.txt)")
@@ -720,7 +606,6 @@ class MainWindow(QMainWindow):
             return
 
         text = text.replace("\\n", "\n").replace("\\r", "\r")
-        import re
         text = re.sub(r'\\x([0-9a-fA-F]{2})', lambda m: chr(int(m.group(1), 16)), text)
 
         data = text.encode('latin-1', errors='replace')
@@ -732,6 +617,14 @@ class MainWindow(QMainWindow):
         self.tx_bytes += len(data)
         self._update_stats()
 
+    def _on_command_send(self, data: bytes):
+        if not (self.serial.serial_port and self.serial.serial_port.is_open):
+            return
+        self.serial.write(data)
+        self.append_tx(data)
+        self.tx_bytes += len(data)
+        self._update_stats()
+
     def on_display_mode_changed(self, mode):
         self.display_mode = mode
 
@@ -739,7 +632,6 @@ class MainWindow(QMainWindow):
 
     def on_data_received(self, data):
         self.log_stack.setCurrentIndex(1)
-        self._set_main_view("log")
         self.append_rx(data)
         self.rx_bytes += len(data)
         self._update_stats()
@@ -751,13 +643,12 @@ class MainWindow(QMainWindow):
 
         self.status_chip.setText(f"● CONECTADO  {port}")
         self.status_chip.setStyleSheet(
-            f"background-color: {C['green_dim']}; color: {C['green']}; "
-            f"border: 1px solid #00ff8833; border-radius: 10px; "
+            f"background-color: #0a2918; color: #33ffaa; "
+            f"border: 1px solid #1a5c35; border-radius: 10px; "
             f"padding: 4px 10px; font-size: 10px; letter-spacing: 1px;"
         )
 
         self.log_stack.setCurrentIndex(1)
-        self._set_main_view("log")
         self.append_info(f"Conectado em {port}")
         self._update_statusbar()
 
@@ -768,8 +659,8 @@ class MainWindow(QMainWindow):
 
         self.status_chip.setText("● DESCONECTADO")
         self.status_chip.setStyleSheet(
-            f"background-color: {C['red_dim']}; color: {C['red']}; "
-            f"border: 1px solid #ff456633; border-radius: 10px; "
+            f"background-color: #2d0a0f; color: #ff6b7a; "
+            f"border: 1px solid #5c1520; border-radius: 10px; "
             f"padding: 4px 10px; font-size: 10px; letter-spacing: 1px;"
         )
 
@@ -783,6 +674,30 @@ class MainWindow(QMainWindow):
     # ── Log formatado ────────────────────────────────────────────────────────
 
     def append_rx(self, data):
+        self._rx_buffer += data
+        self._rx_flush_timer.stop()
+
+        while True:
+            nl = self._rx_buffer.find(b'\n')
+            if nl == -1:
+                if len(self._rx_buffer) > 512:
+                    self._write_rx_line(self._rx_buffer)
+                    self._rx_buffer = b""
+                elif self._rx_buffer:
+                    self._rx_flush_timer.start()
+                break
+            line = self._rx_buffer[:nl].rstrip(b'\r')
+            self._rx_buffer = self._rx_buffer[nl + 1:]
+            self._write_rx_line(line)
+
+    def _flush_rx_buffer(self):
+        if self._rx_buffer:
+            self._write_rx_line(self._rx_buffer)
+            self._rx_buffer = b""
+
+    def _write_rx_line(self, line_data):
+        fired = self._check_triggers(line_data)
+
         cursor = self.log.textCursor()
         cursor.movePosition(QTextCursor.End)
 
@@ -799,13 +714,100 @@ class MainWindow(QMainWindow):
             cursor.insertText("RX  ", fmt_rx)
 
         fmt_data = QTextCharFormat()
-        fmt_data.setForeground(QColor(C['text_primary']))
-        text = self._format_data(data)
-        cursor.insertText(f"{text}\n", fmt_data)
+        if fired:
+            action = fired.get("action")
+            if action == "highlight":
+                bg = fired.get("highlight_color", "#ffaa00")
+                fmt_data.setBackground(QColor(bg))
+                fmt_data.setForeground(QColor("#0a0c10"))
+                fmt_data.setFontWeight(QFont.Bold)
+            elif action == "stop":
+                fmt_data.setBackground(QColor(C['red']))
+                fmt_data.setForeground(QColor("#0a0c10"))
+                fmt_data.setFontWeight(QFont.Bold)
+            else:
+                fmt_data.setForeground(QColor(C['text_primary']))
+        else:
+            fmt_data.setForeground(QColor(C['text_primary']))
+
+        cursor.insertText(f"{self._format_data(line_data)}\n", fmt_data)
+
+        if fired:
+            action = fired.get("action")
+            if action == "newline":
+                cursor.insertText("\n", QTextCharFormat())
+            elif action == "send_command":
+                self._send_trigger_command(fired.get("command_name", ""))
+            elif action == "stop":
+                self.serial.disconnect()
 
         self.log.setTextCursor(cursor)
         if self.toggle_autoscroll.isChecked():
             self.log.verticalScrollBar().setValue(self.log.verticalScrollBar().maximum())
+
+    def _check_triggers(self, line_data):
+        if not hasattr(self, '_triggers_view'):
+            return None
+        for trigger in self._triggers_view.get_triggers():
+            if not trigger.get("enabled", True):
+                continue
+            if self._match_trigger(trigger, line_data):
+                return trigger
+        return None
+
+    def _match_trigger(self, trigger, line_data):
+        match_format = trigger.get("match_format", "ASCII")
+        match_type   = trigger.get("match_type", "contains")
+        pattern      = trigger.get("pattern", "")
+
+        if not pattern:
+            return False
+
+        if match_format == "HEX":
+            subject = ' '.join(f'{b:02X}' for b in line_data).upper()
+            pattern = pattern.upper()
+        else:
+            subject = line_data.decode('latin-1', errors='replace')
+
+        try:
+            if match_type == "contains":
+                return pattern in subject
+            elif match_type == "equals":
+                return pattern == subject
+            elif match_type == "starts_with":
+                return subject.startswith(pattern)
+            elif match_type == "ends_with":
+                return subject.endswith(pattern)
+            elif match_type == "regex":
+                return bool(re.search(pattern, subject))
+        except Exception:
+            return False
+        return False
+
+    def _send_trigger_command(self, command_name):
+        if not hasattr(self, '_commands_view'):
+            return
+        if not (self.serial.serial_port and self.serial.serial_port.is_open):
+            return
+        for cmd in self._commands_view._commands:
+            if cmd.get("name") == command_name:
+                payload = cmd.get("payload", "")
+                fmt = cmd.get("format", "ASCII")
+                try:
+                    if fmt == "ASCII":
+                        text = payload.replace("\\n", "\n").replace("\\r", "\r")
+                        text = re.sub(
+                            r'\\x([0-9a-fA-F]{2})',
+                            lambda m: chr(int(m.group(1), 16)),
+                            text,
+                        )
+                        data = text.encode("latin-1", errors="replace")
+                    else:
+                        data = bytes.fromhex(payload.replace(" ", ""))
+                    self._on_command_send(data)
+                except Exception:
+                    pass
+                break
 
     def append_tx(self, data):
         cursor = self.log.textCursor()

@@ -14,10 +14,10 @@ COLORS = {
     "red_dim":      "#ff456622",
     "amber":        "#ffaa00",
     "text_primary": "#e8edf5",
-    "text_secondary":"#7a8ba0",
-    "text_muted":   "#3d4f63",
-    "border":       "#1e2d3d",
-    "border_bright":"#2a3f55",
+    "text_secondary":"#96adc7",
+    "text_muted":   "#5a7899",
+    "border":       "#253650",
+    "border_bright":"#33506e",
 }
 
 C = COLORS
@@ -32,7 +32,7 @@ def get_stylesheet():
     QWidget {{
         background-color: {C['bg_deep']};
         color: {C['text_primary']};
-        font-size: 11px;
+        font-size: 12px;
     }}
     
     QMainWindow {{
@@ -53,7 +53,16 @@ def get_stylesheet():
     QPushButton:pressed {{
         background-color: {C['bg_hover']};
     }}
-    
+    QPushButton:checked {{
+        background-color: {C['bg_surface']};
+        color: {C['text_primary']};
+        border: 1px solid {C['accent']};
+    }}
+    QPushButton:checked:hover {{
+        background-color: {C['bg_raised']};
+        border: 1px solid {C['accent']};
+    }}
+
     QPushButton#btn_connect {{
         background-color: {C['green_dim']};
         color: {C['green']};
@@ -70,16 +79,6 @@ def get_stylesheet():
     }}
     QPushButton#btn_disconnect:hover {{
         background-color: #ff456633;
-    }}
-    
-    QPushButton#btn_send {{
-        background-color: {C['accent']};
-        color: {C['bg_deep']};
-        border: none;
-        font-weight: bold;
-    }}
-    QPushButton#btn_send:hover {{
-        background-color: #33dbff;
     }}
     
     QComboBox {{
@@ -141,6 +140,7 @@ def get_stylesheet():
         background-color: transparent;
         border: none;
         color: {C['text_primary']};
+        font-size: 13px;
         selection-background-color: {C['accent_dim']};
     }}
     
