@@ -2,7 +2,7 @@
 import re
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-    QLineEdit, QPushButton, QDoubleSpinBox
+    QLineEdit, QPushButton, QDoubleSpinBox, QCheckBox
 )
 from app.style import get_stylesheet, COLORS as C
 from app.widgets.pill_group import PillGroup
@@ -67,7 +67,7 @@ class CommandDialog(QDialog):
             f"QDoubleSpinBox {{ background-color: {C['bg_surface']}; border: 1px solid {C['border_bright']}; "
             f"border-radius: 6px; padding: 0 8px; color: {C['text_primary']}; }}"
         )
-
+            
         lbl_s = QLabel("s   (0 = desativado)")
         lbl_s.setStyleSheet(f"color: {C['text_muted']}; font-size: 11px;")
 

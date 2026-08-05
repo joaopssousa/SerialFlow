@@ -148,9 +148,11 @@ class MainWindow(QMainWindow):
     def _build_sidebar(self):
         """Sidebar com configurações"""
         sidebar = QWidget()
+        sidebar.setObjectName("sidebar")
         sidebar.setFixedWidth(300)
         sidebar.setStyleSheet(
-            f"background-color: {C['bg_panel']}; border-right: 1px solid {C['border']};"
+            f"#sidebar {{ background-color: {C['bg_panel']}; "
+            f"border-right: 1px solid {C['border']}; }}"
         )
 
         layout = QVBoxLayout(sidebar)
@@ -363,17 +365,17 @@ class MainWindow(QMainWindow):
 
         switcher = QWidget()
         switcher_layout = QHBoxLayout(switcher)
-        switcher_layout.setContentsMargins(12, 12, 12, 8)
+        switcher_layout.setContentsMargins(20, 20, 20, 8)
         switcher_layout.setSpacing(6)
 
         self.btn_panel_triggers = QPushButton("Triggers")
         self.btn_panel_triggers.setCheckable(True)
-        self.btn_panel_triggers.setFixedHeight(32)
+        self.btn_panel_triggers.setFixedHeight(30)
         self.btn_panel_triggers.clicked.connect(lambda: self._set_utility_view("triggers"))
 
         self.btn_panel_commands = QPushButton("Comandos")
         self.btn_panel_commands.setCheckable(True)
-        self.btn_panel_commands.setFixedHeight(32)
+        self.btn_panel_commands.setFixedHeight(30)
         self.btn_panel_commands.clicked.connect(lambda: self._set_utility_view("commands"))
 
         switcher_layout.addWidget(self.btn_panel_triggers)
@@ -433,27 +435,32 @@ class MainWindow(QMainWindow):
 
     def _section(self, title):
         section = QWidget()
-        section.setStyleSheet(f"border-bottom: 1px solid {C['border']};")
+        section.setObjectName("section")
+        # Seletor por objectName: sem ele o border-bottom cascatearia para os filhos
+        section.setStyleSheet(f"#section {{ border-bottom: 1px solid {C['border']}; }}")
 
         layout = QVBoxLayout(section)
-        layout.setContentsMargins(16, 12, 16, 14)
+        layout.setContentsMargins(16, 14, 16, 16)
         layout.setSpacing(10)
 
         header = QWidget()
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(0, 4, 0, 4)
+        header_layout.setContentsMargins(0, 0, 0, 2)
         header_layout.setSpacing(8)
 
+        bar = QFrame()
+        bar.setObjectName("section_bar")
+        bar.setFixedSize(2, 11)
+        bar.setStyleSheet(f"#section_bar {{ background-color: {C['accent']}; border-radius: 1px; }}")
+
         lbl = QLabel(title.upper())
-        lbl.setStyleSheet(f"color: {C['text_muted']}; font-size: 9px; letter-spacing: 2px; font-weight: bold;")
+        lbl.setStyleSheet(
+            f"color: {C['text_secondary']}; font-size: 9px; letter-spacing: 2px; font-weight: bold;"
+        )
 
-        line = QFrame()
-        line.setFrameShape(QFrame.HLine)
-        line.setStyleSheet(f"color: {C['border']};")
-        line.setFixedHeight(1)
-
+        header_layout.addWidget(bar)
         header_layout.addWidget(lbl)
-        header_layout.addWidget(line, stretch=1)
+        header_layout.addStretch()
 
         layout.addWidget(header)
         return section
