@@ -1,5 +1,11 @@
 """Tema dark completo do SerialForge"""
 
+def rgba(hex_color, alpha):
+    """Cor translúcida para QSS. Não usar hex de 8 dígitos: o Qt lê #AARRGGBB."""
+    r, g, b = (int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
+    return f"rgba({r}, {g}, {b}, {alpha})"
+
+
 COLORS = {
     "bg_deep":      "#0a0c10",
     "bg_panel":     "#10141c",
@@ -7,11 +13,11 @@ COLORS = {
     "bg_raised":    "#1d2436",
     "bg_hover":     "#242d42",
     "accent":       "#00d4ff",
-    "accent_dim":   "#00d4ff22",
+    "accent_dim":   rgba("#00d4ff", 0.13),
     "green":        "#00ff88",
-    "green_dim":    "#00ff8822",
+    "green_dim":    rgba("#00ff88", 0.13),
     "red":          "#ff4566",
-    "red_dim":      "#ff456622",
+    "red_dim":      rgba("#ff4566", 0.13),
     "amber":        "#ffaa00",
     "text_primary": "#e8edf5",
     "text_secondary":"#96adc7",
@@ -22,6 +28,21 @@ COLORS = {
 
 C = COLORS
 
+# Escala tipográfica única (px). Ajustar aqui recalibra a UI inteira.
+FONTS = {
+    "label": 10,   # micro-labels uppercase (seções, parâmetros)
+    "small": 12,   # texto secundário: hints, toggles, chips, statusbar
+    "base":  13,   # texto padrão: botões, campos, nomes
+    "title": 14,   # títulos de painel
+    "stat":  20,   # valores das estatísticas
+    "log":   14,   # log de comunicação
+}
+
+F = FONTS
+
+# Fonte monoespaçada usada só onde há dados (log, previews de frame)
+MONO = "'JetBrains Mono', 'DejaVu Sans Mono', 'Courier New', monospace"
+
 def get_stylesheet():
     return f"""
     * {{
@@ -29,14 +50,22 @@ def get_stylesheet():
         outline: none;
     }}
     
+    /* Sem background aqui: um fundo global opaco faria cada widget filho
+       pintar por cima do painel pai, cobrindo bordas e fundos dos containers */
     QWidget {{
-        background-color: {C['bg_deep']};
         color: {C['text_primary']};
-        font-size: 12px;
+        font-size: {F['base']}px;
     }}
-    
-    QMainWindow {{
+
+    QMainWindow, QDialog {{
         background-color: {C['bg_deep']};
+    }}
+
+    QToolTip {{
+        background-color: {C['bg_raised']};
+        color: {C['text_primary']};
+        border: 1px solid {C['border_bright']};
+        padding: 4px 8px;
     }}
     
     QPushButton {{
@@ -66,19 +95,31 @@ def get_stylesheet():
     QPushButton#btn_connect {{
         background-color: {C['green_dim']};
         color: {C['green']};
-        border-color: #00ff8833;
+        border-color: {rgba('#00ff88', 0.2)};
     }}
     QPushButton#btn_connect:hover {{
-        background-color: #00ff8833;
+        background-color: {rgba('#00ff88', 0.2)};
     }}
-    
+
     QPushButton#btn_disconnect {{
         background-color: {C['red_dim']};
         color: {C['red']};
-        border-color: #ff456633;
+        border-color: {rgba('#ff4566', 0.2)};
     }}
     QPushButton#btn_disconnect:hover {{
-        background-color: #ff456633;
+        background-color: {rgba('#ff4566', 0.2)};
+    }}
+
+    QPushButton:disabled,
+    QPushButton#btn_connect:disabled,
+    QPushButton#btn_disconnect:disabled {{
+        color: {C['text_muted']};
+        background-color: transparent;
+        border-color: {C['border']};
+    }}
+
+    QSizeGrip {{
+        background: transparent;
     }}
     
     QComboBox {{
@@ -140,7 +181,8 @@ def get_stylesheet():
         background-color: transparent;
         border: none;
         color: {C['text_primary']};
-        font-size: 13px;
+        font-family: {MONO};
+        font-size: {F['log']}px;
         selection-background-color: {C['accent_dim']};
     }}
     
@@ -164,6 +206,7 @@ def get_stylesheet():
         background-color: {C['bg_panel']};
         color: {C['text_muted']};
         border-top: 1px solid {C['border']};
+        font-size: {F['small']}px;
     }}
     QStatusBar::item {{
         border: none;

@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QDoubleSpinBox, QCheckBox
 )
-from app.style import get_stylesheet, COLORS as C
+from app.style import get_stylesheet, COLORS as C, FONTS as F, MONO, rgba
 from app.widgets.pill_group import PillGroup
 
 
@@ -45,7 +45,7 @@ class CommandDialog(QDialog):
 
         self.lbl_preview = QLabel("Preview: —")
         self.lbl_preview.setStyleSheet(
-            f"color: {C['text_muted']}; font-size: 11px; font-family: 'Courier New'; "
+            f"color: {C['text_muted']}; font-size: {F['small']}px; font-family: {MONO}; "
             f"background: transparent;"
         )
         layout.addWidget(self.lbl_preview)
@@ -53,7 +53,7 @@ class CommandDialog(QDialog):
         # Repeat interval
         repeat_row = QHBoxLayout()
         lbl_repeat = QLabel("Repetir a cada")
-        lbl_repeat.setStyleSheet(f"color: {C['text_secondary']}; font-size: 12px;")
+        lbl_repeat.setStyleSheet(f"color: {C['text_secondary']}; font-size: {F['base']}px;")
 
         self.spin_interval = QDoubleSpinBox()
         self.spin_interval.setRange(0.0, 3600.0)
@@ -69,7 +69,7 @@ class CommandDialog(QDialog):
         )
             
         lbl_s = QLabel("s   (0 = desativado)")
-        lbl_s.setStyleSheet(f"color: {C['text_muted']}; font-size: 11px;")
+        lbl_s.setStyleSheet(f"color: {C['text_muted']}; font-size: {F['small']}px;")
 
         repeat_row.addWidget(lbl_repeat)
         repeat_row.addWidget(self.spin_interval)
@@ -89,8 +89,8 @@ class CommandDialog(QDialog):
         btn_save.setFixedHeight(34)
         btn_save.setStyleSheet(
             f"QPushButton {{ background-color: {C['accent_dim']}; color: {C['accent']}; "
-            f"border: 1px solid {C['accent']}44; border-radius: 6px; padding: 0 20px; font-weight: bold; }}"
-            f"QPushButton:hover {{ background-color: {C['accent']}33; }}"
+            f"border: 1px solid {rgba(C['accent'], 0.27)}; border-radius: 6px; padding: 0 20px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background-color: {rgba(C['accent'], 0.2)}; }}"
         )
         btn_save.clicked.connect(self.accept)
 
@@ -101,7 +101,7 @@ class CommandDialog(QDialog):
     def _section_label(self, text):
         lbl = QLabel(text.upper())
         lbl.setStyleSheet(
-            f"color: {C['text_muted']}; font-size: 9px; letter-spacing: 1px; background: transparent;"
+            f"color: {C['text_muted']}; font-size: {F['label']}px; letter-spacing: 1px; background: transparent;"
         )
         return lbl
 

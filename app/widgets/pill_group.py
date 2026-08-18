@@ -1,7 +1,7 @@
 """Pill buttons para seleção de modo"""
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QButtonGroup
 from PySide6.QtCore import Qt, Signal
-from app.style import COLORS as C
+from app.style import COLORS as C, FONTS as F
 
 
 class PillGroup(QWidget):
@@ -52,7 +52,7 @@ class PillGroup(QWidget):
                     border: none;
                     border-radius: 5px;
                     font-weight: bold;
-                    font-size: 10px;
+                    font-size: {F['small']}px;
                 }}
             """
         else:
@@ -62,7 +62,7 @@ class PillGroup(QWidget):
                     color: {C['text_secondary']};
                     border: none;
                     border-radius: 5px;
-                    font-size: 10px;
+                    font-size: {F['small']}px;
                 }}
                 QPushButton:hover {{
                     background-color: {C['bg_raised']};

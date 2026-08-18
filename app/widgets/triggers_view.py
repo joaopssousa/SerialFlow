@@ -5,7 +5,8 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QScrollArea, QFileDialog, QMessageBox
 )
-from app.style import COLORS as C
+from PySide6.QtCore import Qt
+from app.style import COLORS as C, FONTS as F
 from app.widgets.trigger_entry import TriggerEntry
 from app.widgets.trigger_dialog import TriggerDialog
 
@@ -36,7 +37,7 @@ class TriggersView(QWidget):
 
         self.lbl_file = QLabel("sem arquivo")
         self.lbl_file.setStyleSheet(
-            f"color: {C['text_muted']}; font-size: 10px; background: transparent;"
+            f"color: {C['text_muted']}; font-size: {F['small']}px; background: transparent;"
         )
 
         file_row.addWidget(self.btn_open)
@@ -47,6 +48,7 @@ class TriggersView(QWidget):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
 
         self._list_container = QWidget()

@@ -1,7 +1,7 @@
 """Linha de trigger no painel de triggers"""
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton
 from PySide6.QtCore import Signal
-from app.style import COLORS as C
+from app.style import COLORS as C, FONTS as F, MONO, rgba
 
 _ACTION_BADGES = {
     "stop":         ("#ff4566", "Parar"),
@@ -12,7 +12,7 @@ _ACTION_BADGES = {
 
 _BTN = (
     f"QPushButton {{ background: transparent; border: 1px solid {C['border_bright']}; "
-    f"border-radius: 4px; color: {C['text_muted']}; font-size: 12px; "
+    f"border-radius: 4px; color: {C['text_muted']}; font-size: {F['base']}px; "
     f"padding: 0 0 1px 0; }}"
     f"QPushButton:hover {{ color: {C['text_primary']}; border-color: {C['accent']}; "
     f"background: {C['bg_raised']}; }}"
@@ -20,7 +20,7 @@ _BTN = (
 
 _BTN_ACTIVE = (
     f"QPushButton {{ background: transparent; border: 1px solid {C['border_bright']}; "
-    f"border-radius: 4px; color: {C['text_muted']}; font-size: 11px; padding: 0 5px; }}"
+    f"border-radius: 4px; color: {C['text_muted']}; font-size: {F['small']}px; padding: 0 5px; }}"
     f"QPushButton:checked {{ background-color: {C['accent_dim']}; color: {C['accent']}; "
     f"border-color: {C['accent']}; }}"
     f"QPushButton:hover {{ border-color: {C['accent']}; }}"
@@ -56,13 +56,13 @@ class TriggerEntry(QFrame):
 
         lbl_name = QLabel(self._trigger.get("name", ""))
         lbl_name.setFixedWidth(66)
-        lbl_name.setStyleSheet(f"color: {C['text_primary']}; font-size: 12px;")
+        lbl_name.setStyleSheet(f"color: {C['text_primary']}; font-size: {F['base']}px;")
 
         pattern = self._trigger.get("pattern", "")
         preview = pattern if len(pattern) <= 14 else pattern[:14] + "…"
         lbl_pattern = QLabel(preview)
         lbl_pattern.setStyleSheet(
-            f"color: {C['text_muted']}; font-size: 11px; font-family: 'Courier New';"
+            f"color: {C['text_muted']}; font-size: {F['small']}px; font-family: {MONO};"
         )
 
         action = self._trigger.get("action", "highlight")
@@ -70,8 +70,8 @@ class TriggerEntry(QFrame):
         lbl_action = QLabel(label)
         lbl_action.setFixedWidth(74)
         lbl_action.setStyleSheet(
-            f"color: {color}; font-size: 10px; background: {color}22; "
-            f"border: 1px solid {color}44; border-radius: 4px; padding: 1px 6px;"
+            f"color: {color}; font-size: {F['label']}px; background: {rgba(color, 0.13)}; "
+            f"border: 1px solid {rgba(color, 0.27)}; border-radius: 4px; padding: 1px 6px;"
         )
 
         layout.addWidget(self.btn_active)

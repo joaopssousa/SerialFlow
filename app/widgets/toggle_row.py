@@ -2,7 +2,7 @@
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel
 from PySide6.QtCore import Qt, Signal
 from app.widgets.toggle_switch import ToggleSwitch
-from app.style import COLORS as C
+from app.style import COLORS as C, FONTS as F
 
 
 class ToggleRow(QWidget):
@@ -24,7 +24,7 @@ class ToggleRow(QWidget):
         layout.setContentsMargins(10, 7, 10, 7)
         
         lbl = QLabel(label)
-        lbl.setStyleSheet(f"color: {C['text_secondary']}; font-size: 11px; border: none; background: transparent;")
+        lbl.setStyleSheet(f"color: {C['text_secondary']}; font-size: {F['small']}px; border: none; background: transparent;")
         
         self.toggle = ToggleSwitch(checked)
         self.toggle.toggled.connect(self.toggled)

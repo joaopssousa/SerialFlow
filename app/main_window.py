@@ -3,17 +3,18 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QComboBox, QLineEdit, QPlainTextEdit,
     QLabel, QStatusBar, QFileDialog, QMessageBox, QFrame,
-    QGridLayout, QStackedWidget
+    QGridLayout, QStackedWidget, QScrollArea
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QTextCharFormat, QColor, QFont, QTextCursor
 from datetime import datetime
 
 import re
-from app.style import get_stylesheet, COLORS as C
+from app.style import get_stylesheet, COLORS as C, FONTS as F, MONO
 from app.serial_backend import SerialBackend
 from app.widgets.pill_group import PillGroup
 from app.widgets.toggle_row import ToggleRow
+from app.widgets.line_indicator import LineIndicator
 from app.widgets.commands_view import CommandsView
 from app.widgets.triggers_view import TriggersView
 
@@ -27,6 +28,7 @@ class MainWindow(QMainWindow):
         # Backend serial
         self.serial = SerialBackend()
         self.serial.data_received.connect(self.on_data_received)
+        self.serial.lines_changed.connect(self.on_lines_changed)
         self.serial.connected.connect(self.on_connected)
         self.serial.disconnected.connect(self.on_disconnected)
         self.serial.error.connect(self.on_error)
@@ -72,24 +74,24 @@ class MainWindow(QMainWindow):
         right_panel = self._build_right_panel()
 
         body.addWidget(sidebar)
+        body.addWidget(self._vdivider())
         body.addWidget(right_panel, stretch=1)
 
         layout.addLayout(body, stretch=1)
 
         self.statusbar = QStatusBar()
-        self.statusbar.setStyleSheet(
-            f"background-color: {C['bg_panel']}; color: {C['text_muted']}; "
-            f"border-top: 1px solid {C['border']}; font-size: 10px;"
-        )
         self.setStatusBar(self.statusbar)
         self._update_statusbar()
 
     def _build_toolbar(self):
         """Toolbar superior"""
         toolbar = QWidget()
+        toolbar.setObjectName("toolbar")
         toolbar.setFixedHeight(46)
+        # Seletor por objectName: sem ele o estilo cascatearia para os filhos
         toolbar.setStyleSheet(
-            f"background-color: {C['bg_panel']}; border-bottom: 1px solid {C['border']};"
+            f"#toolbar {{ background-color: {C['bg_panel']}; "
+            f"border-bottom: 1px solid {C['border']}; }}"
         )
 
         layout = QHBoxLayout(toolbar)
@@ -136,11 +138,7 @@ class MainWindow(QMainWindow):
         layout.addStretch()
 
         self.status_chip = QLabel("● DESCONECTADO")
-        self.status_chip.setStyleSheet(
-            f"background-color: #2d0a0f; color: #ff6b7a; "
-            f"border: 1px solid #5c1520; border-radius: 10px; "
-            f"padding: 4px 10px; font-size: 10px; letter-spacing: 1px;"
-        )
+        self.status_chip.setStyleSheet(self._chip_style("#2d0a0f", "#ff6b7a", "#5c1520"))
         layout.addWidget(self.status_chip)
 
         return toolbar
@@ -150,12 +148,35 @@ class MainWindow(QMainWindow):
         sidebar = QWidget()
         sidebar.setObjectName("sidebar")
         sidebar.setFixedWidth(300)
-        sidebar.setStyleSheet(
-            f"#sidebar {{ background-color: {C['bg_panel']}; "
-            f"border-right: 1px solid {C['border']}; }}"
-        )
+        sidebar.setStyleSheet(f"#sidebar {{ background-color: {C['bg_panel']}; }}")
 
-        layout = QVBoxLayout(sidebar)
+        outer = QVBoxLayout(sidebar)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # Header de 40px igual aos painéis da direita: a linha divisória
+        # horizontal abaixo dele fica contínua pela janela inteira
+        header = QWidget()
+        header.setObjectName("sidebar_header")
+        header.setFixedHeight(40)
+        header.setStyleSheet(
+            f"#sidebar_header {{ background-color: {C['bg_panel']}; "
+            f"border-bottom: 1px solid {C['border']}; }}"
+        )
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(16, 0, 12, 0)
+        lbl_header = QLabel("Configuração")
+        lbl_header.setStyleSheet(
+            f"color: {C['text_primary']}; font-size: {F['title']}px; font-weight: bold;"
+        )
+        header_layout.addWidget(lbl_header)
+        header_layout.addStretch()
+        outer.addWidget(header)
+
+        # Seções dentro de um scroll: em janelas baixas a sidebar rola em vez
+        # de comprimir e sobrepor os widgets
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
@@ -202,7 +223,35 @@ class MainWindow(QMainWindow):
         grid.addWidget(self.combo_stop, 3, 1)
 
         params_section.layout().addLayout(grid)
+
+        self.toggle_rtscts = ToggleRow("Flow Control RTS/CTS", checked=False)
+        self.toggle_rtscts.toggled.connect(self._on_rtscts_toggled)
+        params_section.layout().addWidget(self.toggle_rtscts)
+
         layout.addWidget(params_section)
+
+        lines_section = self._section("Linhas de Controle")
+        leds_row = QHBoxLayout()
+        leds_row.setSpacing(4)
+
+        self._line_leds = {}
+        for key, label, is_output in (
+            ("rts", "RTS", True),
+            ("dtr", "DTR", True),
+            ("cts", "CTS", False),
+            ("dsr", "DSR", False),
+            ("cd",  "DCD", False),
+            ("ri",  "RI",  False),
+        ):
+            led = LineIndicator(label, output=is_output)
+            if is_output:
+                led.clicked.connect(lambda k=key: self._on_line_clicked(k))
+            self._line_leds[key] = led
+            leds_row.addWidget(led)
+        leds_row.addStretch()
+
+        lines_section.layout().addLayout(leds_row)
+        layout.addWidget(lines_section)
 
         display_section = self._section("Modo de Exibição")
         display_layout = QVBoxLayout()
@@ -242,6 +291,15 @@ class MainWindow(QMainWindow):
         layout.addWidget(stats_section)
 
         layout.addStretch()
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { background: transparent; }")
+        scroll.setWidget(content)
+        outer.addWidget(scroll, stretch=1)
+
         return sidebar
 
     def _build_right_panel(self):
@@ -265,16 +323,20 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(send_bar)
 
         self.utility_panel = self._build_utility_panel()
+        self.utility_divider = self._vdivider()
 
         layout.addWidget(main_area, stretch=1)
+        layout.addWidget(self.utility_divider)
         layout.addWidget(self.utility_panel)
         return panel
 
     def _build_content_header(self):
         bar = QWidget()
+        bar.setObjectName("content_header")
         bar.setFixedHeight(40)
         bar.setStyleSheet(
-            f"background-color: {C['bg_panel']}; border-bottom: 1px solid {C['border']};"
+            f"#content_header {{ background-color: {C['bg_panel']}; "
+            f"border-bottom: 1px solid {C['border']}; }}"
         )
 
         layout = QHBoxLayout(bar)
@@ -283,7 +345,7 @@ class MainWindow(QMainWindow):
 
         lbl_title = QLabel("Log de Comunicação")
         lbl_title.setStyleSheet(
-            f"color: {C['accent']}; font-size: 11px; "
+            f"color: {C['accent']}; font-size: {F['base']}px; "
             f"border-bottom: 2px solid {C['accent']}; padding: 0 18px;"
         )
         lbl_title.setFixedHeight(40)
@@ -292,7 +354,7 @@ class MainWindow(QMainWindow):
         layout.addStretch()
 
         self.lbl_context_hint = QLabel("Monitoramento em tempo real")
-        self.lbl_context_hint.setStyleSheet(f"color: {C['text_muted']}; font-size: 11px;")
+        self.lbl_context_hint.setStyleSheet(f"color: {C['text_muted']}; font-size: {F['small']}px;")
         layout.addWidget(self.lbl_context_hint)
 
         return bar
@@ -312,10 +374,10 @@ class MainWindow(QMainWindow):
         empty_icon.setStyleSheet("font-size: 36px;")
         empty_icon.setAlignment(Qt.AlignCenter)
         empty_title = QLabel("Aguardando conexão...")
-        empty_title.setStyleSheet(f"color: {C['text_secondary']}; font-size: 13px;")
+        empty_title.setStyleSheet(f"color: {C['text_secondary']}; font-size: {F['title']}px;")
         empty_title.setAlignment(Qt.AlignCenter)
         empty_sub = QLabel("Selecione uma porta e clique em Conectar")
-        empty_sub.setStyleSheet(f"color: {C['text_muted']}; font-size: 11px;")
+        empty_sub.setStyleSheet(f"color: {C['text_muted']}; font-size: {F['small']}px;")
         empty_sub.setAlignment(Qt.AlignCenter)
         empty_layout.addWidget(empty_icon)
         empty_layout.addWidget(empty_title)
@@ -323,8 +385,6 @@ class MainWindow(QMainWindow):
 
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
-        log_font = QFont("Courier New", 12)
-        self.log.setFont(log_font)
         self.log.setStyleSheet(
             "padding: 12px; background: transparent; border: none;"
         )
@@ -336,26 +396,33 @@ class MainWindow(QMainWindow):
 
     def _build_utility_panel(self):
         panel = QWidget()
+        panel.setObjectName("utility_panel")
         panel.setFixedWidth(360)
-        panel.setStyleSheet(
-            f"background-color: {C['bg_panel']}; border-left: 1px solid {C['border']};"
-        )
+        panel.setStyleSheet(f"#utility_panel {{ background-color: {C['bg_panel']}; }}")
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         header = QWidget()
+        header.setObjectName("utility_header")
         header.setFixedHeight(40)
-        header.setStyleSheet(f"border-bottom: 1px solid {C['border']};")
+        header.setStyleSheet(f"#utility_header {{ border-bottom: 1px solid {C['border']}; }}")
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(12, 0, 12, 0)
 
         self.lbl_utility_title = QLabel("Triggers")
-        self.lbl_utility_title.setStyleSheet(f"color: {C['text_primary']}; font-size: 12px; font-weight: bold;")
+        self.lbl_utility_title.setStyleSheet(f"color: {C['text_primary']}; font-size: {F['title']}px; font-weight: bold;")
 
-        self.btn_hide_utility = QPushButton("✕")
+        self.btn_hide_utility = QPushButton("×")
         self.btn_hide_utility.setFixedSize(28, 28)
+        # O padding global de QPushButton (6px 14px) não deixa área útil num
+        # botão de 28px e o glifo some
+        self.btn_hide_utility.setStyleSheet(
+            f"QPushButton {{ padding: 0; border: 1px solid {C['border_bright']}; "
+            f"border-radius: 6px; color: {C['text_secondary']}; background: transparent; }}"
+            f"QPushButton:hover {{ background: {C['bg_raised']}; color: {C['text_primary']}; }}"
+        )
         self.btn_hide_utility.clicked.connect(lambda: self._set_utility_panel_visible(False))
 
         header_layout.addWidget(self.lbl_utility_title)
@@ -411,8 +478,8 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 10, 12, 10)
 
         self.input_send = QLineEdit()
-        self.input_send.setPlaceholderText("Enviar frame manual... (suporta \\n \\r \\xNN)")
         self.input_send.setFixedHeight(34)
+        self._update_send_placeholder()
         self.input_send.returnPressed.connect(self.on_send_clicked)
 
         self.btn_send = QPushButton("➤  Enviar")
@@ -455,7 +522,7 @@ class MainWindow(QMainWindow):
 
         lbl = QLabel(title.upper())
         lbl.setStyleSheet(
-            f"color: {C['text_secondary']}; font-size: 9px; letter-spacing: 2px; font-weight: bold;"
+            f"color: {C['text_secondary']}; font-size: {F['label']}px; letter-spacing: 2px; font-weight: bold;"
         )
 
         header_layout.addWidget(bar)
@@ -467,7 +534,7 @@ class MainWindow(QMainWindow):
 
     def _param_label(self, text):
         lbl = QLabel(text.upper())
-        lbl.setStyleSheet(f"color: {C['text_muted']}; font-size: 9px; letter-spacing: 1px;")
+        lbl.setStyleSheet(f"color: {C['text_muted']}; font-size: {F['label']}px; letter-spacing: 1px;")
         return lbl
 
     def _stat_card(self, label, color):
@@ -483,11 +550,11 @@ class MainWindow(QMainWindow):
         layout.setSpacing(3)
 
         lbl = QLabel(label.upper())
-        lbl.setStyleSheet(f"color: {C['text_muted']}; font-size: 9px; letter-spacing: 1px; border: none;")
+        lbl.setStyleSheet(f"color: {C['text_muted']}; font-size: {F['label']}px; letter-spacing: 1px; border: none;")
 
         value = QLabel("0 B")
         value.setObjectName("stat_value")
-        value.setStyleSheet(f"color: {color}; font-size: 18px; font-weight: bold; border: none;")
+        value.setStyleSheet(f"color: {color}; font-size: {F['stat']}px; font-weight: bold; border: none;")
 
         layout.addWidget(lbl)
         layout.addWidget(value)
@@ -503,11 +570,11 @@ class MainWindow(QMainWindow):
         layout.setSpacing(6)
 
         lbl_title = QLabel(title)
-        lbl_title.setStyleSheet(f"color: {C['text_primary']}; font-size: 13px; font-weight: bold;")
+        lbl_title.setStyleSheet(f"color: {C['text_primary']}; font-size: {F['title']}px; font-weight: bold;")
 
         lbl_text = QLabel(text)
         lbl_text.setWordWrap(True)
-        lbl_text.setStyleSheet(f"color: {C['text_secondary']}; font-size: 12px;")
+        lbl_text.setStyleSheet(f"color: {C['text_secondary']}; font-size: {F['base']}px;")
 
         layout.addWidget(lbl_title)
         layout.addWidget(lbl_text)
@@ -523,15 +590,30 @@ class MainWindow(QMainWindow):
         layout.setSpacing(6)
 
         lbl_title = QLabel(title.upper())
-        lbl_title.setStyleSheet(f"color: {C['text_muted']}; font-size: 10px; letter-spacing: 1px; font-weight: bold;")
+        lbl_title.setStyleSheet(f"color: {C['text_muted']}; font-size: {F['label']}px; letter-spacing: 1px; font-weight: bold;")
 
         lbl_text = QLabel(text)
         lbl_text.setWordWrap(True)
-        lbl_text.setStyleSheet(f"color: {C['text_secondary']}; font-size: 12px;")
+        lbl_text.setStyleSheet(f"color: {C['text_secondary']}; font-size: {F['base']}px;")
 
         layout.addWidget(lbl_title)
         layout.addWidget(lbl_text)
         return block
+
+    @staticmethod
+    def _chip_style(bg, fg, border):
+        return (
+            f"background-color: {bg}; color: {fg}; "
+            f"border: 1px solid {border}; border-radius: 10px; "
+            f"padding: 4px 10px; font-size: {F['small']}px; letter-spacing: 1px;"
+        )
+
+    def _vdivider(self):
+        # Divisória vertical como widget próprio: nenhum filho pinta por cima
+        d = QFrame()
+        d.setFixedWidth(1)
+        d.setStyleSheet(f"background-color: {C['border']};")
+        return d
 
     def _sep(self):
         sep = QFrame()
@@ -552,6 +634,7 @@ class MainWindow(QMainWindow):
 
     def _set_utility_panel_visible(self, visible):
         self.utility_panel.setVisible(visible)
+        self.utility_divider.setVisible(visible)
         self.btn_toggle_triggers.setChecked(visible and self.current_utility_view == "triggers")
         self.btn_toggle_commands.setChecked(visible and self.current_utility_view == "commands")
 
@@ -587,7 +670,8 @@ class MainWindow(QMainWindow):
         parity_map = {"Nenhuma": "N", "Par": "E", "Ímpar": "O"}
         parity = parity_map.get(self.combo_parity.currentText(), "N")
         stopbits = float(self.combo_stop.currentText())
-        self.serial.connect(port, baudrate, bytesize, parity, stopbits)
+        rtscts = self.toggle_rtscts.isChecked()
+        self.serial.connect(port, baudrate, bytesize, parity, stopbits, rtscts)
 
     def on_disconnect_clicked(self):
         self.serial.disconnect()
@@ -612,10 +696,20 @@ class MainWindow(QMainWindow):
         if not text:
             return
 
-        text = text.replace("\\n", "\n").replace("\\r", "\r")
-        text = re.sub(r'\\x([0-9a-fA-F]{2})', lambda m: chr(int(m.group(1), 16)), text)
-
-        data = text.encode('latin-1', errors='replace')
+        if self.display_mode == "HEX":
+            try:
+                data = bytes.fromhex(text.replace(" ", ""))
+            except ValueError:
+                self._flash_send_error(
+                    "Frame HEX inválido — use pares hexadecimais (ex: 0A 4E FF 0D)"
+                )
+                return
+            if not data:
+                return
+        else:
+            text = text.replace("\\n", "\n").replace("\\r", "\r")
+            text = re.sub(r'\\x([0-9a-fA-F]{2})', lambda m: chr(int(m.group(1), 16)), text)
+            data = text.encode('latin-1', errors='replace')
 
         self.serial.write(data)
         self.append_tx(data)
@@ -634,6 +728,57 @@ class MainWindow(QMainWindow):
 
     def on_display_mode_changed(self, mode):
         self.display_mode = mode
+        self._update_send_placeholder()
+
+    def _update_send_placeholder(self):
+        if self.display_mode == "HEX":
+            self.input_send.setPlaceholderText("Enviar frame em HEX... (ex: 0A 4E 30 2C 0D)")
+        else:
+            self.input_send.setPlaceholderText("Enviar frame manual... (suporta \\n \\r \\xNN)")
+
+    def _flash_send_error(self, msg):
+        self.input_send.setStyleSheet(f"QLineEdit {{ border: 1px solid {C['red']}; }}")
+        self.statusbar.showMessage(f"⚠ {msg}")
+        QTimer.singleShot(1800, lambda: self.input_send.setStyleSheet(""))
+        QTimer.singleShot(3500, self._update_statusbar)
+
+    # ── Linhas de controle ───────────────────────────────────────────────────
+
+    def _on_rtscts_toggled(self, enabled):
+        # Com flow control por hardware o driver assume o RTS: bloqueia o manual
+        self.serial.set_flow_control(enabled)
+        connected = bool(self.serial.serial_port and self.serial.serial_port.is_open)
+        self._line_leds["rts"].setLineEnabled(connected and not enabled)
+        self._update_statusbar()
+
+    def _on_line_clicked(self, line):
+        if not (self.serial.serial_port and self.serial.serial_port.is_open):
+            return
+        if line == "rts" and self.toggle_rtscts.isChecked():
+            return
+        new_state = not self._line_leds[line].isOn()
+        if line == "rts":
+            self.serial.set_rts(new_state)
+        else:
+            self.serial.set_dtr(new_state)
+        self._line_leds[line].setOn(new_state)
+
+    def on_lines_changed(self, lines):
+        for key, led in self._line_leds.items():
+            led.setOn(lines.get(key, False))
+
+    def _set_leds_connected(self, connected):
+        for key, led in self._line_leds.items():
+            if key == "rts":
+                led.setLineEnabled(connected and not self.toggle_rtscts.isChecked())
+            else:
+                led.setLineEnabled(connected)
+            if not connected:
+                led.setOn(False)
+        if connected:
+            lines = self.serial.get_lines()
+            if lines:
+                self.on_lines_changed(lines)
 
     # ── Serial callbacks ─────────────────────────────────────────────────────
 
@@ -649,13 +794,10 @@ class MainWindow(QMainWindow):
         self.btn_send.setEnabled(True)
 
         self.status_chip.setText(f"● CONECTADO  {port}")
-        self.status_chip.setStyleSheet(
-            f"background-color: #0a2918; color: #33ffaa; "
-            f"border: 1px solid #1a5c35; border-radius: 10px; "
-            f"padding: 4px 10px; font-size: 10px; letter-spacing: 1px;"
-        )
+        self.status_chip.setStyleSheet(self._chip_style("#0a2918", "#33ffaa", "#1a5c35"))
 
         self.log_stack.setCurrentIndex(1)
+        self._set_leds_connected(True)
         self.append_info(f"Conectado em {port}")
         self._update_statusbar()
 
@@ -665,14 +807,18 @@ class MainWindow(QMainWindow):
         self.btn_send.setEnabled(False)
 
         self.status_chip.setText("● DESCONECTADO")
-        self.status_chip.setStyleSheet(
-            f"background-color: #2d0a0f; color: #ff6b7a; "
-            f"border: 1px solid #5c1520; border-radius: 10px; "
-            f"padding: 4px 10px; font-size: 10px; letter-spacing: 1px;"
-        )
+        self.status_chip.setStyleSheet(self._chip_style("#2d0a0f", "#ff6b7a", "#5c1520"))
 
+        self._set_leds_connected(False)
         self.append_info("Desconectado")
         self._update_statusbar()
+
+    def closeEvent(self, event):
+        # Encerra a thread do reader antes de sair; sem isso o Qt aborta
+        # com "QThread: Destroyed while thread is still running"
+        if self.serial.serial_port and self.serial.serial_port.is_open:
+            self.serial.disconnect()
+        super().closeEvent(event)
 
     def on_error(self, msg):
         QMessageBox.critical(self, "Erro Serial", msg)
@@ -874,6 +1020,8 @@ class MainWindow(QMainWindow):
             f"{self.combo_baud.currentText()} bps · {self.combo_data.currentText()}"
             f"{self.combo_parity.currentText()[0]}{self.combo_stop.currentText()}"
         )
+        if self.toggle_rtscts.isChecked():
+            cfg += " · RTS/CTS"
         self.statusbar.showMessage(
             f"● Porta: {self.combo_port.currentText() if self.combo_port.count() else '---'}  |  "
             f"RX: {self._fmt_bytes(self.rx_bytes)}  |  TX: {self._fmt_bytes(self.tx_bytes)}  |  {cfg}"

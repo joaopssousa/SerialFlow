@@ -1,18 +1,18 @@
 """Linha de comando no painel de comandos"""
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton
 from PySide6.QtCore import Signal, QTimer
-from app.style import COLORS as C
+from app.style import COLORS as C, FONTS as F, MONO
 
 _BTN = (
     f"QPushButton {{ background: transparent; border: 1px solid {C['border_bright']}; "
-    f"border-radius: 4px; color: {C['text_muted']}; font-size: 12px; "
+    f"border-radius: 4px; color: {C['text_muted']}; font-size: {F['base']}px; "
     f"padding: 0 0 1px 0; }}"
     f"QPushButton:hover {{ color: {C['text_primary']}; border-color: {C['accent']}; "
     f"background: {C['bg_raised']}; }}"
 )
 _BTN_REPEAT = (
     f"QPushButton {{ background: transparent; border: 1px solid {C['border_bright']}; "
-    f"border-radius: 4px; color: {C['text_muted']}; font-size: 10px; padding: 0 6px; }}"
+    f"border-radius: 4px; color: {C['text_muted']}; font-size: {F['small']}px; padding: 0 6px; }}"
     f"QPushButton:checked {{ background-color: {C['accent_dim']}; color: {C['accent']}; "
     f"border-color: {C['accent']}; }}"
     f"QPushButton:hover {{ border-color: {C['accent']}; }}"
@@ -44,13 +44,13 @@ class CommandEntry(QFrame):
 
         lbl_name = QLabel(self._command.get("name", ""))
         lbl_name.setFixedWidth(80)
-        lbl_name.setStyleSheet(f"color: {C['text_primary']}; font-size: 12px;")
+        lbl_name.setStyleSheet(f"color: {C['text_primary']}; font-size: {F['base']}px;")
 
         payload = self._command.get("payload", "")
         preview = payload if len(payload) <= 18 else payload[:18] + "…"
         lbl_frame = QLabel(preview)
         lbl_frame.setStyleSheet(
-            f"color: {C['text_muted']}; font-size: 11px; font-family: 'Courier New';"
+            f"color: {C['text_muted']}; font-size: {F['small']}px; font-family: {MONO};"
         )
 
         layout.addWidget(lbl_name)

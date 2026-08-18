@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QComboBox, QStackedWidget, QWidget
 )
-from app.style import get_stylesheet, COLORS as C
+from app.style import get_stylesheet, COLORS as C, FONTS as F, rgba
 from app.widgets.pill_group import PillGroup
 
 _HIGHLIGHT_COLORS = [
@@ -104,7 +104,7 @@ class TriggerDialog(QDialog):
         nl_layout = QHBoxLayout(page_newline)
         nl_layout.setContentsMargins(0, 4, 0, 4)
         lbl_nl = QLabel("Uma linha em branco será inserida após o frame no log.")
-        lbl_nl.setStyleSheet(f"color: {C['text_muted']}; font-size: 11px;")
+        lbl_nl.setStyleSheet(f"color: {C['text_muted']}; font-size: {F['small']}px;")
         lbl_nl.setWordWrap(True)
         nl_layout.addWidget(lbl_nl)
         self.action_stack.addWidget(page_newline)
@@ -114,7 +114,7 @@ class TriggerDialog(QDialog):
         st_layout = QHBoxLayout(page_stop)
         st_layout.setContentsMargins(0, 4, 0, 4)
         lbl_st = QLabel("A comunicação serial será encerrada ao receber este frame.")
-        lbl_st.setStyleSheet(f"color: {C['red']}; font-size: 11px;")
+        lbl_st.setStyleSheet(f"color: {C['red']}; font-size: {F['small']}px;")
         lbl_st.setWordWrap(True)
         st_layout.addWidget(lbl_st)
         self.action_stack.addWidget(page_stop)
@@ -125,7 +125,7 @@ class TriggerDialog(QDialog):
         cmd_layout.setContentsMargins(0, 4, 0, 4)
         cmd_layout.setSpacing(8)
         lbl_cmd = QLabel("Comando:")
-        lbl_cmd.setStyleSheet(f"color: {C['text_secondary']}; font-size: 12px;")
+        lbl_cmd.setStyleSheet(f"color: {C['text_secondary']}; font-size: {F['base']}px;")
         self.combo_command = QComboBox()
         self.combo_command.setFixedHeight(34)
         for cmd in self._commands:
@@ -152,8 +152,8 @@ class TriggerDialog(QDialog):
         btn_save.setFixedHeight(34)
         btn_save.setStyleSheet(
             f"QPushButton {{ background-color: {C['accent_dim']}; color: {C['accent']}; "
-            f"border: 1px solid {C['accent']}44; border-radius: 6px; padding: 0 20px; font-weight: bold; }}"
-            f"QPushButton:hover {{ background-color: {C['accent']}33; }}"
+            f"border: 1px solid {rgba(C['accent'], 0.27)}; border-radius: 6px; padding: 0 20px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background-color: {rgba(C['accent'], 0.2)}; }}"
         )
         btn_save.clicked.connect(self.accept)
 
@@ -164,7 +164,7 @@ class TriggerDialog(QDialog):
     def _section_label(self, text):
         lbl = QLabel(text.upper())
         lbl.setStyleSheet(
-            f"color: {C['text_muted']}; font-size: 9px; letter-spacing: 1px; background: transparent;"
+            f"color: {C['text_muted']}; font-size: {F['label']}px; letter-spacing: 1px; background: transparent;"
         )
         return lbl
 

@@ -6,8 +6,8 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QScrollArea, QFileDialog, QMessageBox
 )
-from PySide6.QtCore import Signal
-from app.style import COLORS as C
+from PySide6.QtCore import Signal, Qt
+from app.style import COLORS as C, FONTS as F
 from app.widgets.command_entry import CommandEntry
 from app.widgets.command_dialog import CommandDialog
 
@@ -39,7 +39,7 @@ class CommandsView(QWidget):
         self.btn_save.clicked.connect(self._save_file)
 
         self.lbl_file = QLabel("sem arquivo")
-        self.lbl_file.setStyleSheet(f"color: {C['text_muted']}; font-size: 10px; background: transparent;")
+        self.lbl_file.setStyleSheet(f"color: {C['text_muted']}; font-size: {F['small']}px; background: transparent;")
 
         file_row.addWidget(self.btn_open)
         file_row.addWidget(self.btn_save)
@@ -50,6 +50,7 @@ class CommandsView(QWidget):
         # Scroll area
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
 
         self._list_container = QWidget()
