@@ -124,7 +124,7 @@ class TriggersView(QWidget):
     def _open_file(self):
         path, _ = QFileDialog.getOpenFileName(
             self, "Abrir triggers", "",
-            "SerialFlow Triggers (*.sftrig);;JSON (*.json)"
+            "SerialForge Triggers (*.sftrig);;JSON (*.json)"
         )
         if not path:
             return
@@ -147,7 +147,7 @@ class TriggersView(QWidget):
         path, _ = QFileDialog.getSaveFileName(
             self, "Salvar triggers",
             self._current_file or "triggers.sftrig",
-            "SerialFlow Triggers (*.sftrig);;JSON (*.json)"
+            "SerialForge Triggers (*.sftrig);;JSON (*.json)"
         )
         if not path:
             return

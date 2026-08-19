@@ -141,7 +141,7 @@ class CommandsView(QWidget):
     def _open_file(self):
         path, _ = QFileDialog.getOpenFileName(
             self, "Abrir comandos", "",
-            "SerialFlow Commands (*.sfcmd);;JSON (*.json)"
+            "SerialForge Commands (*.sfcmd);;JSON (*.json)"
         )
         if not path:
             return
@@ -164,7 +164,7 @@ class CommandsView(QWidget):
         path, _ = QFileDialog.getSaveFileName(
             self, "Salvar comandos",
             self._current_file or "comandos.sfcmd",
-            "SerialFlow Commands (*.sfcmd);;JSON (*.json)"
+            "SerialForge Commands (*.sfcmd);;JSON (*.json)"
         )
         if not path:
             return
