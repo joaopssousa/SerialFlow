@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=SerialForge
+Comment=Terminal serial com triggers, comandos e monitoramento de linhas
+Comment[en]=Serial terminal with triggers, commands and control-line monitoring
+Exec=serialforge
+Icon=serialforge
+Terminal=false
+Categories=Development;Electronics;Utility;
+Keywords=serial;uart;rs232;terminal;baudrate;tty;
+StartupWMClass=serialforge

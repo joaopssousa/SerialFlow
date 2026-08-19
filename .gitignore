@@ -8,4 +8,24 @@ env/
 __pycache__/
 *.py[cod]
 *.pyo
+*.egg-info/
 .pytest_cache/
+
+# Artefatos de build (PyInstaller / AppImage)
+build/
+dist/
+*.AppImage
+AppDir/
+# gerado pelo scripts/build_release.sh a partir das flags do PyInstaller
+serialforge.spec
+
+# Dados de trabalho do usuário (comandos e triggers salvos)
+/*.sfcmd
+/*.sftrig
+
+# Editores e sistema operacional
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
