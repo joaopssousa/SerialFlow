@@ -385,8 +385,10 @@ class MainWindow(QMainWindow):
 
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
+        # Seletor obrigatório: sem ele o padding cascateia para a QScrollBar
+        # de 6px e não sobra área para pintar o indicador
         self.log.setStyleSheet(
-            "padding: 12px; background: transparent; border: none;"
+            "QPlainTextEdit { padding: 12px; background: transparent; border: none; }"
         )
 
         self.log_stack.addWidget(empty)
