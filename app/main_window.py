@@ -850,11 +850,21 @@ class MainWindow(QMainWindow):
             self._write_rx_line(self._rx_buffer)
             self._rx_buffer = b""
 
+    def _log_append_cursor(self):
+        """Cursor próprio no fim do documento: não mexe no cursor do widget,
+        que ao ser movido faz o Qt rolar até ele mesmo com auto-scroll off"""
+        cursor = QTextCursor(self.log.document())
+        cursor.movePosition(QTextCursor.End)
+        return cursor, self.log.verticalScrollBar().value()
+
+    def _log_finish_append(self, scroll_pos):
+        bar = self.log.verticalScrollBar()
+        bar.setValue(bar.maximum() if self.toggle_autoscroll.isChecked() else scroll_pos)
+
     def _write_rx_line(self, line_data):
         fired = self._check_triggers(line_data)
 
-        cursor = self.log.textCursor()
-        cursor.movePosition(QTextCursor.End)
+        cursor, scroll_pos = self._log_append_cursor()
 
         if self.show_timestamp:
             ts = datetime.now().strftime("%H:%M:%S.%f")[:12]
@@ -896,9 +906,7 @@ class MainWindow(QMainWindow):
             elif action == "stop":
                 self.serial.disconnect()
 
-        self.log.setTextCursor(cursor)
-        if self.toggle_autoscroll.isChecked():
-            self.log.verticalScrollBar().setValue(self.log.verticalScrollBar().maximum())
+        self._log_finish_append(scroll_pos)
 
     def _check_triggers(self, line_data):
         if not hasattr(self, '_triggers_view'):
@@ -965,8 +973,7 @@ class MainWindow(QMainWindow):
                 break
 
     def append_tx(self, data):
-        cursor = self.log.textCursor()
-        cursor.movePosition(QTextCursor.End)
+        cursor, scroll_pos = self._log_append_cursor()
 
         if self.show_timestamp:
             ts = datetime.now().strftime("%H:%M:%S.%f")[:12]
@@ -985,21 +992,16 @@ class MainWindow(QMainWindow):
         text = self._format_data(data)
         cursor.insertText(f"{text}\n", fmt_data)
 
-        self.log.setTextCursor(cursor)
-        if self.toggle_autoscroll.isChecked():
-            self.log.verticalScrollBar().setValue(self.log.verticalScrollBar().maximum())
+        self._log_finish_append(scroll_pos)
 
     def append_info(self, msg):
-        cursor = self.log.textCursor()
-        cursor.movePosition(QTextCursor.End)
+        cursor, scroll_pos = self._log_append_cursor()
 
         fmt = QTextCharFormat()
         fmt.setForeground(QColor(C['amber']))
         cursor.insertText(f"─ {msg}\n", fmt)
 
-        self.log.setTextCursor(cursor)
-        if self.toggle_autoscroll.isChecked():
-            self.log.verticalScrollBar().setValue(self.log.verticalScrollBar().maximum())
+        self._log_finish_append(scroll_pos)
 
     def _format_data(self, data):
         if self.display_mode == "ASCII":
