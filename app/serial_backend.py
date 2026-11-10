@@ -1,4 +1,5 @@
 """Backend serial simples e funcional"""
+import sys
 import serial
 import serial.tools.list_ports
 from PySide6.QtCore import QObject, Signal, QThread
@@ -168,5 +169,8 @@ class SerialBackend(QObject):
     
     @staticmethod
     def list_ports():
-        """Lista portas disponíveis"""
-        return [p.device for p in serial.tools.list_ports.comports()]
+        """Lista portas disponíveis (no Linux, só ttyACM* e ttyUSB*)"""
+        devices = [p.device for p in serial.tools.list_ports.comports()]
+        if sys.platform.startswith("linux"):
+            devices = [d for d in devices if d.startswith(("/dev/ttyACM", "/dev/ttyUSB"))]
+        return sorted(devices)
